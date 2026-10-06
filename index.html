@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LicenseVault Admin</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --panel: #12151c;
+    --panel-2: #171b24;
+    --border: #262b36;
+    --text: #e6e8ee;
+    --muted: #8b93a3;
+    --accent: #6ea8fe;
+    --good: #4ade80;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--panel);
+  }
+  header h1 { font-size: 16px; margin: 0; letter-spacing: 0.02em; }
+  header .status { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { background: var(--good); }
+  .dot.bad { background: var(--bad); }
+
+  main { max-width: 1000px; margin: 0 auto; padding: 20px; display: none; }
+  main.visible { display: block; }
+
+  #loginScreen {
+    max-width: 360px; margin: 80px auto; padding: 24px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  #loginScreen h2 { margin-top: 0; font-size: 16px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input, select, textarea {
+    width: 100%; padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 13px;
+  }
+  textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+  button {
+    cursor: pointer; border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+    padding: 7px 12px; border-radius: 6px; font-size: 13px;
+  }
+  button.primary { background: var(--accent); color: #0b0d12; border-color: var(--accent); font-weight: 600; }
+  button.danger { color: var(--bad); border-color: #3a2222; }
+  button:disabled { opacity: 0.5; cursor: default; }
+
+  .tabs { display: flex; gap: 4px; margin: 18px 0; border-bottom: 1px solid var(--border); }
+  .tab { padding: 8px 14px; font-size: 13px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 18px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .stat .n { font-size: 20px; font-weight: 700; }
+  .stat .l { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  tr:hover td { background: var(--panel-2); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; }
+  .badge.active { background: #15301f; color: var(--good); }
+  .badge.revoked { background: #351717; color: var(--bad); }
+  .badge.expired { background: #352a12; color: var(--warn); }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .card h3 { margin: 0 0 10px; font-size: 14px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 140px; }
+  .actions { display: flex; gap: 6px; }
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; background: var(--panel-2); border: 1px solid var(--border);
+    padding: 10px 14px; border-radius: 8px; font-size: 13px; max-width: 320px; display: none;
+  }
+  .toast.show { display: block; }
+  .toast.error { border-color: #5a2a2a; color: var(--bad); }
+  .muted { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LicenseVault</h1>
+  <div class="status"><span id="statusDot" class="dot"></span><span id="statusText">checking API…</span></div>
+</header>
+
+<div id="loginScreen">
+  <h2>Admin sign in</h2>
+  <label>Vault API URL</label>
+  <input id="apiUrl" value="http://localhost:4000" />
+  <label>Username</label>
+  <input id="loginUsername" value="admin" />
+  <label>Password</label>
+  <input id="loginPassword" type="password" />
+  <div style="margin-top:14px;"><button class="primary" onclick="login()" style="width:100%;">Sign in</button></div>
+  <div id="loginError" class="muted" style="color:var(--bad); margin-top:8px;"></div>
+</div>
+
+<main id="app">
+  <div class="stats" id="stats"></div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="products" onclick="switchTab('products')">Scripts / Products</div>
+    <div class="tab" data-tab="keys" onclick="switchTab('keys')">Keys</div>
+    <div class="tab" data-tab="logs" onclick="switchTab('logs')">Audit Log</div>
+  </div>
+
+  <div class="panel active" id="panel-products">
+    <div class="card">
+      <h3>New product</h3>
+      <div class="row">
+        <div><label>Name</label><input id="newProductName" /></div>
+        <div><label>Description</label><input id="newProductDesc" /></div>
+      </div>
+      <div style="margin-top:10px;"><button class="primary" onclick="createProduct()">Create product</button></div>
+    </div>
+
+    <table id="productsTable">
+      <thead><tr><th>Name</th><th>Latest version</th><th>Enabled</th><th>Created</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="card" id="versionCard" style="display:none; margin-top:16px;">
+      <h3 id="versionCardTitle">Versions</h3>
+      <div class="row">
+        <div><label>Version label</label><input id="newVersionLabel" placeholder="1.0.0" /></div>
+        <div><label>File</label><input id="newVersionFile" type="file" /></div>
+      </div>
+      <div style="margin-top:10px;"><button class="primary" onclick="uploadVersion()">Upload version</button></div>
+      <table style="margin-top:14px;">
+        <thead><tr><th>Version</th><th>Filename</th><th>SHA-256</th><th>Size</th><th>Uploaded</th></tr></thead>
+        <tbody id="versionsTableBody"></tbody>
+      </table>
+
+      <h3 style="margin-top:20px;">Claude-assisted cleanup</h3>
+      <p class="muted">Formatting / dead-comment / minification pass only — not obfuscation. Review the result, then upload it as a version above if you're happy with it.</p>
+      <label>Source</label>
+      <textarea id="cleanupSource" rows="6" placeholder="Paste source to clean up…"></textarea>
+      <div class="row" style="margin-top:8px;">
+        <div><label>Language (optional)</label><input id="cleanupLanguage" placeholder="e.g. TypeScript" /></div>
+        <div style="display:flex; align-items:flex-end;"><label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="cleanupMinify" style="width:auto;" /> Minify</label></div>
+      </div>
+      <div style="margin-top:8px;"><button onclick="runCleanup()">Run cleanup</button></div>
+      <label style="margin-top:10px;">Result</label>
+      <textarea id="cleanupResult" rows="6" readonly></textarea>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-keys">
+    <div class="card">
+      <h3>Generate key</h3>
+      <div class="row">
+        <div><label>Product</label><select id="keyProduct"></select></div>
+        <div><label>Max devices</label><input id="keyMaxDevices" type="number" value="1" min="1" /></div>
+        <div><label>Max uses (optional)</label><input id="keyMaxUses" type="number" min="1" /></div>
+        <div><label>Expires in days (optional)</label><input id="keyExpiresDays" type="number" min="1" /></div>
+      </div>
+      <label>Notes</label><input id="keyNotes" />
+      <div style="margin-top:10px;"><button class="primary" onclick="createKey()">Generate key</button></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Key</th><th>Status</th><th>Devices</th><th>Uses</th><th>Expires</th><th></th></tr></thead>
+      <tbody id="keysTableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="panel" id="panel-logs">
+    <table>
+      <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Detail</th><th>IP</th></tr></thead>
+      <tbody id="logsTableBody"></tbody>
+    </table>
+  </div>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script>
+let API = '';
+let TOKEN = '';
+let products = [];
+let selectedProductId = null;
+
+function toast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 3000);
+}
+
+async function api(path, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({}, opts.headers, TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {});
+  const res = await fetch(API + path, opts);
+  if (!res.ok) {
+    let msg = 'Request failed (' + res.status + ')';
+    try { const body = await res.json(); if (body.error) msg = body.error; } catch (e) {}
+    throw new Error(msg);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function apiJson(path, method, body) {
+  return api(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}
+
+async function checkHealth() {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  try {
+    const r = await fetch((document.getElementById('apiUrl').value || API) + '/health');
+    if (r.ok) { dot.className = 'dot ok'; text.textContent = 'API online'; }
+    else throw new Error();
+  } catch {
+    dot.className = 'dot bad'; text.textContent = 'API unreachable';
+  }
+}
+
+async function login() {
+  API = document.getElementById('apiUrl').value.replace(/\/$/, '');
+  const username = document.getElementById('loginUsername').value;
+  const password = document.getElementById('loginPassword').value;
+  try {
+    const res = await apiJson('/v1/auth/login', 'POST', { username, password });
+    TOKEN = res.token;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').classList.add('visible');
+    await refreshAll();
+  } catch (e) {
+    document.getElementById('loginError').textContent = e.message;
+  }
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+  if (name === 'logs') loadLogs();
+}
+
+async function refreshAll() {
+  await Promise.all([loadStats(), loadProducts(), loadKeys()]);
+}
+
+async function loadStats() {
+  const s = await api('/v1/admin/stats');
+  const el = document.getElementById('stats');
+  el.innerHTML = [
+    ['Products', s.productCount],
+    ['Licenses', s.licenseCount],
+    ['Active', s.activeLicenseCount],
+    ['Revoked', s.revokedLicenseCount],
+    ['Expired', s.expiredLicenseCount],
+  ].map(([l, n]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+}
+
+async function loadProducts() {
+  products = await api('/v1/admin/products');
+  const tbody = document.querySelector('#productsTable tbody');
+  tbody.innerHTML = '';
+  const keySelect = document.getElementById('keyProduct');
+  keySelect.innerHTML = '';
+
+  for (const p of products) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(p.name)}<div class="muted">${escapeHtml(p.description || '')}</div></td>
+      <td class="muted">—</td>
+      <td>${p.enabled ? 'yes' : 'no'}</td>
+      <td class="muted">${formatDate(p.created_at)}</td>
+      <td class="actions">
+        <button onclick="openProduct('${p.id}')">Versions</button>
+        <button class="danger" onclick="deleteProduct('${p.id}')">Delete</button>
+      </td>`;
+    tbody.appendChild(tr);
+
+    const opt = document.createElement('option');
+    opt.value = p.id; opt.textContent = p.name;
+    keySelect.appendChild(opt);
+  }
+}
+
+async function createProduct() {
+  const name = document.getElementById('newProductName').value.trim();
+  const description = document.getElementById('newProductDesc').value.trim();
+  if (!name) return toast('Name is required', true);
+  try {
+    await apiJson('/v1/admin/products', 'POST', { name, description });
+    document.getElementById('newProductName').value = '';
+    document.getElementById('newProductDesc').value = '';
+    toast('Product created');
+    await refreshAll();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function deleteProduct(id) {
+  if (!confirm('Delete this product and all its versions?')) return;
+  try {
+    await api('/v1/admin/products/' + id, { method: 'DELETE' });
+    toast('Product deleted');
+    await refreshAll();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function openProduct(id) {
+  selectedProductId = id;
+  const product = products.find(p => p.id === id);
+  document.getElementById('versionCard').style.display = 'block';
+  document.getElementById('versionCardTitle').textContent = 'Versions — ' + (product ? product.name : id);
+  await loadVersions(id);
+}
+
+async function loadVersions(id) {
+  const versions = await api('/v1/admin/products/' + id + '/versions');
+  const tbody = document.getElementById('versionsTableBody');
+  tbody.innerHTML = versions.map(v => `
+    <tr>
+      <td>${escapeHtml(v.version)}${v.is_latest ? ' <span class="badge active">latest</span>' : ''}</td>
+      <td>${escapeHtml(v.filename)}</td>
+      <td class="mono">${v.sha256.slice(0, 16)}…</td>
+      <td class="muted">${formatBytes(v.size_bytes)}</td>
+      <td class="muted">${formatDate(v.created_at)}</td>
+    </tr>`).join('');
+}
+
+async function uploadVersion() {
+  if (!selectedProductId) return;
+  const version = document.getElementById('newVersionLabel').value.trim();
+  const fileInput = document.getElementById('newVersionFile');
+  if (!version || !fileInput.files[0]) return toast('Version label and file are required', true);
+
+  const form = new FormData();
+  form.append('version', version);
+  form.append('file', fileInput.files[0]);
+  try {
+    await api('/v1/admin/products/' + selectedProductId + '/versions', { method: 'POST', body: form });
+    toast('Version uploaded');
+    document.getElementById('newVersionLabel').value = '';
+    fileInput.value = '';
+    await loadVersions(selectedProductId);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function runCleanup() {
+  if (!selectedProductId) return;
+  const source = document.getElementById('cleanupSource').value;
+  const language = document.getElementById('cleanupLanguage').value.trim();
+  const minify = document.getElementById('cleanupMinify').checked;
+  if (!source.trim()) return toast('Paste some source first', true);
+  try {
+    const res = await apiJson('/v1/admin/products/' + selectedProductId + '/cleanup', 'POST', { source, language, minify });
+    document.getElementById('cleanupResult').value = res.cleaned;
+    toast('Cleanup complete — review before publishing');
+  } catch (e) { toast(e.message, true); }
+}
+
+async function loadKeys() {
+  const licenses = await api('/v1/admin/licenses');
+  const tbody = document.getElementById('keysTableBody');
+  tbody.innerHTML = licenses.map(l => `
+    <tr>
+      <td class="mono">${l.key}</td>
+      <td><span class="badge ${l.status}">${l.status}</span></td>
+      <td>${l.max_devices}</td>
+      <td>${l.use_count}${l.max_uses ? ' / ' + l.max_uses : ''}</td>
+      <td class="muted">${l.expires_at ? formatDate(l.expires_at) : 'never'}</td>
+      <td class="actions">
+        ${l.status === 'active' ? `<button class="danger" onclick="revokeKey('${l.id}')">Revoke</button>` : ''}
+        <button onclick="resetDevices('${l.id}')">Reset devices</button>
+      </td>
+    </tr>`).join('');
+}
+
+async function createKey() {
+  const productId = document.getElementById('keyProduct').value;
+  if (!productId) return toast('Create a product first', true);
+  const maxDevices = Number(document.getElementById('keyMaxDevices').value || 1);
+  const maxUsesRaw = document.getElementById('keyMaxUses').value;
+  const expiresRaw = document.getElementById('keyExpiresDays').value;
+  const notes = document.getElementById('keyNotes').value;
+
+  const body = { productId, maxDevices, notes };
+  if (maxUsesRaw) body.maxUses = Number(maxUsesRaw);
+  if (expiresRaw) body.expiresInDays = Number(expiresRaw);
+
+  try {
+    const license = await apiJson('/v1/admin/licenses', 'POST', body);
+    toast('Key created: ' + license.key);
+    await loadKeys();
+    await loadStats();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function revokeKey(id) {
+  if (!confirm('Revoke this license?')) return;
+  try {
+    await api('/v1/admin/licenses/' + id + '/revoke', { method: 'POST' });
+    toast('License revoked');
+    await loadKeys();
+    await loadStats();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function resetDevices(id) {
+  if (!confirm('Clear all device slots for this license?')) return;
+  try {
+    await api('/v1/admin/licenses/' + id + '/reset-devices', { method: 'POST' });
+    toast('Device slots reset');
+  } catch (e) { toast(e.message, true); }
+}
+
+async function loadLogs() {
+  const logs = await api('/v1/admin/audit-logs?limit=300');
+  const tbody = document.getElementById('logsTableBody');
+  tbody.innerHTML = logs.map(l => `
+    <tr>
+      <td class="muted">${formatDate(l.created_at)}</td>
+      <td>${escapeHtml(l.actor)}</td>
+      <td class="mono">${escapeHtml(l.action)}</td>
+      <td class="mono">${escapeHtml(l.target || '')}</td>
+      <td class="muted">${escapeHtml(l.detail || '')}</td>
+      <td class="muted">${escapeHtml(l.ip || '')}</td>
+    </tr>`).join('');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function formatDate(s) { try { return new Date(s + (s.endsWith('Z') ? '' : 'Z')).toLocaleString(); } catch { return s; } }
+function formatBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+checkHealth();
+setInterval(checkHealth, 15000);
+</script>
+</body>
+</html>
